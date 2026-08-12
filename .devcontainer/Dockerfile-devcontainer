@@ -1,0 +1,186 @@
+# Comando para Build da Imagem
+# docker build -t devcontainer-ai-cli:0.7 -f .devcontainer/Dockerfile-devcontainer .
+
+# Infra de DESENVOLVIMENTO. Também pode ser construída isoladamente via
+# scripts/build-image-devcontainer.sh (fora do docker-compose), para
+# reutilizar esta mesma imagem como base de referência em outros projetos.
+# Imagem base derivada de Debian, enxuta e estável.
+FROM debian:bookworm-slim
+
+# --- Pacotes do sistema -------------------------------------------------------
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        bash \
+        ca-certificates \
+        curl \
+        git \
+        gnupg \
+        make \
+        nano \
+        sudo \
+        zip \
+        unzip \
+        xz-utils \
+        iputils-ping \
+        iproute2 \
+        bubblewrap \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Node.js (LTS) + npm -------------------------------------------------------
+# Repositório NodeSource configurado manualmente (mesmo padrão do Chrome/gh
+# abaixo), em vez do script setup_lts.x: aquele script chama o binário "apt"
+# internamente, que emite "WARNING: apt does not have a stable CLI interface"
+# a cada rebuild. Usando só apt-get diretamente, o warning some.
+RUN curl -fsSL https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key \
+        | gpg --dearmor -o /usr/share/keyrings/nodesource.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/nodesource.gpg] https://deb.nodesource.com/node_24.x nodistro main" \
+        > /etc/apt/sources.list.d/nodesource.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends nodejs \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Google Chrome (automação de navegador, ex.: agent-browser) ---------------
+RUN curl -fsSL https://dl.google.com/linux/linux_signing_key.pub \
+        | gpg --dearmor -o /usr/share/keyrings/google-chrome.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/google-chrome.gpg] http://dl.google.com/linux/chrome/deb/ stable main" \
+        > /etc/apt/sources.list.d/google-chrome.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends google-chrome-stable \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- GitHub CLI (gh) -----------------------------------------------------------
+RUN curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        -o /usr/share/keyrings/githubcli-archive-keyring.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends gh \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- Docker CLI (DooD: cliente no container, daemon no host via socket) --------
+# Apenas o cliente e o plugin do Compose — o daemon NÃO roda aqui; o container
+# fala com o daemon do host pelo /var/run/docker.sock montado (ver
+# devcontainer.json). Por isso docker-ce/containerd ficam de fora.
+RUN curl -fsSL https://download.docker.com/linux/debian/gpg \
+        | gpg --dearmor -o /usr/share/keyrings/docker.gpg \
+    && echo "deb [arch=amd64 signed-by=/usr/share/keyrings/docker.gpg] https://download.docker.com/linux/debian bookworm stable" \
+        > /etc/apt/sources.list.d/docker.list \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends docker-ce-cli docker-compose-plugin \
+    && rm -rf /var/lib/apt/lists/*
+
+# --- uv (gerenciador de dependências/ambiente Python do projeto) --------------
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /uvx /usr/local/bin/
+
+# 0. Alinha o UID/GID do usuário "app" (1000:1000 na imagem base) com o do
+# usuário do host, para que os arquivos montados via bind mount (workspace,
+# ~/.claude, ~/.gemini, ~/.codex, ~/.config/rclone) apareçam como pertencentes
+# ao "app" dentro do container. "updateRemoteUserUID" do devcontainer.json não
+# resolve isso: só tem efeito em configs baseadas em image/Dockerfile, não em
+# dockerComposeFile. Se o GID do host já existir na imagem (ex.: "docker"),
+# apenas adiciona "app" a esse grupo em vez de tentar renumerar (evita erro
+# de GID duplicado).
+#
+# O chown de /home/jovyan/work acontece AQUI (não mais numa RUN separada lá
+# embaixo, perto do mkdir): "chown -R app:app" resolvido por nome, numa layer
+# própria, ficava vulnerável a cache do Docker ficar "preso" num HOST_UID
+# antigo caso o layer anterior fosse reaproveitado — foi o que causou o botão
+# "+ New Chat" do Jupyter AI falhar (403 silencioso) com o diretório dono de
+# um UID órfão. Usando ${HOST_UID}/${HOST_GID} diretamente aqui, o cache
+# deste RUN fica atrelado aos mesmos ARGs do remapeamento acima, então uma
+# mudança de UID/GID sempre invalida os dois juntos.
+ARG HOST_UID=1000
+ARG HOST_GID=1000
+# --- Usuário não-root (UID/GID 1000, casa com o fallback do docker-compose) ---
+RUN groupadd --gid "${HOST_GID}" app \
+    && useradd --uid "${HOST_UID}" --gid "${HOST_GID}" --create-home --shell /bin/bash app \
+    && groupadd -f docker \
+    && usermod -aG docker app \
+    && echo "app ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/app \
+    && chmod 0440 /etc/sudoers.d/app
+
+RUN if getent group "${HOST_GID}" > /dev/null; then \
+        usermod -aG "${HOST_GID}" app; \
+    else \
+        groupmod -g "${HOST_GID}" app; \
+    fi \
+    && usermod -u "${HOST_UID}" app \
+    && chown -R "${HOST_UID}:$(id -g app)" /home/app
+
+# Pré-cria os diretórios de config do Claude Code, Gemini e Codex com dono correto: quando o
+# devcontainer monta um volume nomeado vazio em /home/app/.claude, .gemini ou .codex pela
+# primeira vez, o Docker copia o conteúdo/dono deste diretório da imagem
+# para o volume. Sem isso, o ponto de montagem é criado como root e o
+# usuário app fica sem permissão de escrita.
+RUN mkdir -p \
+    /home/app/.claude \
+    /home/app/.gemini \
+    /home/app/.codex \
+    /home/app/.agents \
+    && chown -R app:app \
+    /home/app/.claude \
+    /home/app/.gemini \
+    /home/app/.codex \
+    /home/app/.agents
+
+# --- ccusage (CLI de monitoramento de consumo de tokens Claude, via npm) ------
+# Instalação global (/usr/lib/node_modules + /usr/bin), ainda como root.
+RUN npm install -g ccusage
+
+# --- OpenSpec (CLI de spec-driven development, comandos /opsx:*) --------------
+# Instalação global, ainda como root.
+RUN npm install -g @fission-ai/openspec
+
+# --- Gemini CLI (Google) -------------------------------------------------------
+# Instalação global, ainda como root. Usa o diretório /home/app/.gemini
+# pré-criado acima para config/credenciais do usuário app.
+RUN npm install -g @google/gemini-cli
+
+# --- Claude Code CLI (Anthropic) ------------------------------------------------
+# Instalação global, ainda como root. Usa o diretório /home/app/.claude
+# pré-criado acima para config/credenciais do usuário app.
+RUN npm install -g @anthropic-ai/claude-code
+
+# --- Adaptadores ACP (Node.js/npm e as CLIs @anthropic-ai/claude-code e
+# @openai/codex já vêm da imagem base), necessários para Claude e Codex
+# aparecerem como opções de agente no chat do Jupyter AI, junto do GitHub
+# Copilot.
+RUN npm install -g @agentclientprotocol/claude-agent-acp @zed-industries/codex-acp
+
+# 0b. A imagem base instala o Claude Code CLI via "npm install -g" como
+# root, então /usr/lib/node_modules/@anthropic-ai/claude-code fica com
+# dono root:root — o próprio auto-update do Claude Code roda como "app" e
+# falha silenciosamente (erro "no_permissions") sem este chown.
+#RUN chown -R app:app /usr/lib/node_modules/@anthropic-ai/claude-code
+RUN chown -R app:app /usr/lib/node_modules/
+
+# --- Codex CLI (OpenAI) ---------------------------------------------------------
+# Instalação global, ainda como root. Usa o diretório /home/app/.codex
+# pré-criado acima para config/credenciais do usuário app.
+RUN npm install -g @openai/codex
+
+# --- Bun (runtime/gerenciador JS) — instalação global -------------------------
+# BUN_INSTALL redireciona o instalador oficial (que por padrão usa $HOME/.bun)
+# para /usr/local, deixando bun/bunx em /usr/local/bin — mesmo padrão do
+# uv/uvx acima, acessível a qualquer usuário do container.
+RUN export BUN_INSTALL=/usr/local && curl -fsSL https://bun.com/install | bash
+
+# --- claude-usage (CLI de monitoramento de consumo de tokens, via uv tool) ----
+# UV_TOOL_DIR/UV_TOOL_BIN_DIR redirecionam o "uv tool install" (que por padrão
+# usa $HOME/.local/share/uv/tools e $HOME/.local/bin) para diretórios globais.
+RUN UV_TOOL_DIR=/usr/local/share/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin \
+    uv tool install git+https://github.com/phuryn/claude-usage
+
+# --- Google Antigravity (AGY CLI) ---------------------------------------------
+# --dir redireciona o download do binário (que por padrão usa $HOME/.local/bin)
+# para /usr/local/bin. O instalador também roda "agy install" internamente —
+# passo de auto-configuração do próprio binário compilado, não inspecionável
+# via shell script; validar após um build real que nada fica preso em /root
+# que o usuário app precisaria em /home/app.
+RUN curl -fsSL https://antigravity.google/cli/install.sh | bash -s -- --dir /usr/local/bin
+
+# Volta para o usuário padrão não-root da imagem por segurança. Nenhuma
+# instalação acima depende de $HOME — todas os binários já caem em
+# /usr/local/bin, herdado no PATH da imagem base.
+USER app
+
+WORKDIR /workspace

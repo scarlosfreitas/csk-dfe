@@ -1,0 +1,48 @@
+
+{
+  //Ambiente de desenvolvimento com Debian e Claude Code
+  "name": "csk-dfe",
+  "dockerComposeFile": "docker-compose.yml",
+  "service": "app",
+  "workspaceFolder": "/code/sefaz/csk-dfe",
+  "shutdownAction": "none",
+  "remoteUser": "app",
+  "mounts": [
+    "source=${localEnv:HOME}/.claude,target=/home/app/.claude,type=bind", // config do claude
+    "source=${localEnv:HOME}/.gemini,target=/home/app/.gemini,type=bind", // config do gemini/antigravity
+    "source=${localEnv:HOME}/.codex,target=/home/app/.codex,type=bind", // config do codex
+    "source=${localEnv:HOME}/.agents,target=/home/app/.agents,type=bind" // config global de agentes
+  ],
+  "containerEnv": {    
+    "CLAUDE_CONFIG_DIR": "/home/app/.claude", // isso garant que o .claude.json saia da Home par dentro do .claude
+    "LANG": "C.UTF-8",
+    "LC_ALL": "C.UTF-8",
+    // Força o uso do helper "store" (credenciais lidas de ~/.git-credentials,
+    // gerado pelo postCreate.sh a partir do GIT_TOKKEN do .env). Sem isso o
+    // Dev Containers injeta seu próprio credential.helper (proxy para o host)
+    // em /etc/gitconfig e ~/.gitconfig, que quebra o push/commit no container
+    // pois não há UI para completar aquele fluxo de autenticação.
+    //
+    // credential.helper é CUMULATIVO: declarar "store" apenas o acrescenta ao
+    // fim da lista, então os helpers do Dev Containers ainda rodam antes e
+    // falham com "fatal: could not read Username" (uma vez por helper) até o
+    // "store" responder. Por isso o VALUE_0 é vazio: um valor vazio zera a
+    // lista acumulada, e o VALUE_1 define "store" como único helper.
+    "GIT_CONFIG_COUNT": "2",
+    "GIT_CONFIG_KEY_0": "credential.helper",
+    "GIT_CONFIG_VALUE_0": "",
+    "GIT_CONFIG_KEY_1": "credential.helper",
+    "GIT_CONFIG_VALUE_1": "store"
+  },
+  "customizations": {
+    "vscode": {
+      "settings": {
+        // Impede que a extensão Dev Containers copie o git config do host
+        // (incluindo seu credential.helper) para dentro do container,
+        // sobrescrevendo o helper "store" acima.
+        "dev.containers.copyGitConfig": false
+      }
+    }
+  },
+  "postCreateCommand": "bash .devcontainer/postCreate.sh"
+}

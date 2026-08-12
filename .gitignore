@@ -1,0 +1,21 @@
+# Segredos / config local
+.env
+.secrets
+.devcontainer/.env
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+uv.lock.tmp
+
+# undetected-chromedriver (binário baixado em runtime)
+*chromedriver*
+
+settings.local.json
+
+# Worktrees adicionais (checkout de outros branches dentro da própria árvore)
+/.worktrees/
+
+# Binários locais (Oracle Instant Client etc)
+opt/

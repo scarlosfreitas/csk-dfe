@@ -1,0 +1,1 @@
+FROM devcontainer-ai-cli:0.7
