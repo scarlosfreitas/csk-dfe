@@ -37,9 +37,9 @@ Os documentos são particionados por dia, em arquivos de aproximadamente 128 MB.
 
 O algoritmo e seus parâmetros normativos estão definidos em `references/domain/csk_dfe_components.md` (FNV-1a de 32 bits, reduzido por `& 63`).
 
-### 1.4 Número aleatório
+### 1.4 `random_number`
 
-Os 30 bits menos significativos recebem um número aleatório, oferecendo 1.073.741.824 possibilidades **por combinação de data, tipo de documento e segmento de CNPJ**.
+Os 30 bits menos significativos recebem o `random_number`, um número aleatório de desambiguação, oferecendo 1.073.741.824 possibilidades **por combinação de data, tipo de documento e segmento de CNPJ**.
 
 O gerador deve ser uniformemente distribuído e de baixo custo computacional; **não** precisa ser criptográfico.
 
@@ -103,7 +103,7 @@ Números sequenciais são deliberadamente rejeitados: no processamento históric
 * **dhemi:** data de emissão (`date`, século 2000–2099)
 * **tpdoc:** tipo de documento (objeto `TpDoc`)
 * **hash_cnpj:** segmento do CNPJ base (inteiro de 0 a 63)
-* **aleatorio:** número aleatório (inteiro de 0 a 2³⁰−1)
+* **random_number:** número aleatório de desambiguação (inteiro de 0 a 2³⁰−1)
 
 > O CNPJ **não** é recuperável a partir da chave: o campo de 6 bits guarda um hash, não o valor. `decode()` devolve o segmento, não o CNPJ.
 
@@ -233,10 +233,10 @@ Códigos reservados são válidos para `from_cod()` e `from_reverse_cod()`, mas 
 18. `hash_cnpj()` **DEVE** considerar apenas os 8 primeiros caracteres, produzindo o mesmo resultado para um CNPJ completo e para a sua raiz.
 19. `hash_cnpj()` **DEVE** aceitar raízes alfanuméricas.
 
-### Número aleatório
+### `random_number`
 
 20. Duas chamadas consecutivas de `generate()` com os mesmos argumentos **DEVEM** produzir chaves diferentes (com probabilidade 1 − 2⁻³⁰ por chamada).
-21. O campo aleatório **DEVE** ocupar toda a faixa de 0 a 2³⁰−1.
+21. O campo `random_number` **DEVE** ocupar toda a faixa de 0 a 2³⁰−1.
 
 ### Base62
 

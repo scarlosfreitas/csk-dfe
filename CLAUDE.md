@@ -10,7 +10,7 @@ Todos os artefatos, specs, comentários, documentação e mensagens de commit s�
 
 Biblioteca Python que gera e decodifica o **CSK-DFE** (Composite Sharding Key), um identificador de partição de 64 bits para documentos fiscais eletrônicos brasileiros.
 
-**Estado atual: não existe código Python ainda.** O repositório contém apenas documentos de domínio, o PRD e artefatos de planejamento OpenSpec. A primeira implementação está planejada na change `class-tpdoc`, ainda não aplicada. Não presuma que existe `pyproject.toml`, pacote ou suíte de testes — verifique antes.
+O pacote `csk_dfe` está implementado em `src/csk_dfe/`, com `pyproject.toml`, suíte `pytest` em `tests/` e notebooks de demonstração em `notebooks/`. As changes `class-tpdoc` e `class-all` já foram aplicadas: a resolução de tipos de documento (`TpDoc`) e as cinco funções do §4 do PRD (`generate`, `decode`, `hash_cnpj`, `to_base62`, `from_base62`) estão disponíveis.
 
 ## Cadeia de autoridade
 
@@ -36,7 +36,7 @@ Nada deve ser suposto além do que esses arquivos permitem deduzir. **Em caso de
 
 ```
 sinal (1, sempre 0) | AAMMDD (20, <<43) | tpdoc reverso (7, <<36)
-                    | hash do CNPJ (6, <<30) | aleatório (30)
+                    | hash do CNPJ (6, <<30) | random_number (30)
 ```
 
 Pontos que já foram implementados errado ou documentados errado neste projeto:
@@ -44,7 +44,7 @@ Pontos que já foram implementados errado ou documentados errado neste projeto:
 - A data é o **decimal literal AAMMDD**, sem epoch, século fixo em 2000–2099. É deliberado: permite consulta SQL por faixa direto sobre a chave (`220101*2**43` a `230731*2**43`).
 - O campo de documento grava o **código reverso** (reversão de 7 bits), nunca o código direto. O bit mais à direita do reverso é o sinalizador de tabela estendida, e por isso é sempre `0` para os códigos 0–63.
 - O hash do CNPJ é **FNV-1a** (XOR antes da multiplicação), 32 bits, `& 63`, sobre a raiz de 8 caracteres, que pode ser alfanumérica. **Não é FNV-1** — a referência já esteve errada nesse ponto.
-- Os 30 bits aleatórios usam gerador **não criptográfico**. Sequenciais foram rejeitados por causa de choques no processamento histórico (SQNFE do Catálogo 1.0).
+- O campo de 30 bits chama-se **`random_number`** em spec, código, testes e notebook — nome alinhado pela change `class-all`; o PRD e `references/domain/` já o chamavam de "aleatório". Usa gerador **não criptográfico**. Sequenciais foram rejeitados por causa de choques no processamento histórico (SQNFE do Catálogo 1.0).
 - O CNPJ **não é recuperável** a partir da chave: o campo guarda um hash.
 - A biblioteca **não garante unicidade** — é responsabilidade do consumidor.
 

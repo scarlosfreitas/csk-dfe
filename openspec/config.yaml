@@ -10,7 +10,7 @@ context: |
   o menos significativo:
 
     sinal (1, sempre 0) | AAMMDD (20, <<43) | tpdoc reverso (7, <<36)
-    | hash do CNPJ (6, <<30) | aleatório (30)
+    | hash do CNPJ (6, <<30) | random_number (30)
 
   Pontos do domínio que costumam ser mal interpretados:
   - A data é o decimal literal AAMMDD, sem epoch, século fixo em 2000-2099.
@@ -20,9 +20,9 @@ context: |
     tabela estendida.
   - O hash do CNPJ é FNV-1a de 32 bits reduzido por & 63, sobre a raiz de 8
     caracteres, que pode ser alfanumérica. Não é FNV-1.
-  - Os 30 bits aleatórios usam gerador não criptográfico. Sequenciais foram
-    rejeitados por causa de choques no processamento histórico (SQNFE do
-    Catálogo 1.0).
+  - Os 30 bits do campo `random_number` usam gerador não criptográfico.
+    Sequenciais foram rejeitados por causa de choques no processamento
+    histórico (SQNFE do Catálogo 1.0).
   - O CNPJ não é recuperável a partir da chave: o campo guarda um hash.
   - A biblioteca não garante unicidade; ela é responsabilidade do consumidor.
 

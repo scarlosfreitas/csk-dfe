@@ -40,9 +40,9 @@ para cada byte b da raiz:
 retorna hash & 63
 ```
 
-## Número Aleatório
+## `random_number`
 
-A fim evitar choques ao criar chaves, serão utilizados  30 bits para geração de  número aleatório, garantindo 1.073.741.824 possibilidade para um dia. Os últimos dígitos podem ser utilizados para indicação de workers.
+A fim evitar choques ao criar chaves, serão utilizados  30 bits para geração do `random_number`, um número aleatório, garantindo 1.073.741.824 possibilidade para um dia. Os últimos dígitos podem ser utilizados para indicação de workers.
 
 O algoritmo de geração deve ser uniformemente distribuído, geração com baixo consumo computacional e não precisa ser criptográfico.
 
