@@ -1,13 +1,53 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  Idioma: todos os artefatos, specs, comentários e mensagens de commit são
+  escritos em português do Brasil. Mensagens de commit no imperativo.
+
+  Domínio: biblioteca que gera e decodifica o CSK-DFE (Composite Sharding
+  Key), um identificador de partição de 64 bits para documentos fiscais
+  eletrônicos brasileiros. Layout da chave, do bit mais significativo para
+  o menos significativo:
+
+    sinal (1, sempre 0) | AAMMDD (20, <<43) | tpdoc reverso (7, <<36)
+    | hash do CNPJ (6, <<30) | aleatório (30)
+
+  Pontos do domínio que costumam ser mal interpretados:
+  - A data é o decimal literal AAMMDD, sem epoch, século fixo em 2000-2099.
+    Isso é deliberado: permite consulta SQL por faixa direto sobre a chave.
+  - O campo de documento grava o código REVERSO (reversão de 7 bits), nunca
+    o código direto. O bit mais à direita do campo é o sinalizador de
+    tabela estendida.
+  - O hash do CNPJ é FNV-1a de 32 bits reduzido por & 63, sobre a raiz de 8
+    caracteres, que pode ser alfanumérica. Não é FNV-1.
+  - Os 30 bits aleatórios usam gerador não criptográfico. Sequenciais foram
+    rejeitados por causa de choques no processamento histórico (SQNFE do
+    Catálogo 1.0).
+  - O CNPJ não é recuperável a partir da chave: o campo guarda um hash.
+  - A biblioteca não garante unicidade; ela é responsabilidade do consumidor.
+
+  Fonte da verdade: references/domain/ — csk_dfe_components.md (definição
+  normativa dos componentes e do algoritmo de hash) e tab-tpdoc.csv (tabela
+  de tipos de documento, códigos 0-63, com a coluna reverso). Nenhuma
+  afirmação em spec ou código deve contradizer esses arquivos, e nada deve
+  ser suposto além do que eles permitem deduzir. Em caso de lacuna,
+  pergunte em vez de assumir.
+
+  A pasta notebooks/ NÃO é referência: destina-se a notebooks de teste e
+  prototipação.
+
+  Requisitos: specs/PRD.md, seção 8, com 27 critérios numerados em
+  linguagem normativa (DEVE). Cada cenário WHEN/THEN deve rastrear para um
+  desses critérios.
+
+  Stack: Python, uv como gerenciador de ambiente e dependências, com a
+  pasta do ambiente virtual fora da pasta do projeto. Sem dependências
+  fora da biblioteca padrão.
+
+  Fora de escopo, não proponha sem que o escopo seja explicitamente
+  reaberto: workers (worker_id/worker_num), tabela estendida de documentos,
+  garantia determinística de unicidade e implementações em outras
+  linguagens.
 
 # Per-artifact rules (optional)
 # Add custom rules for specific artifacts.
