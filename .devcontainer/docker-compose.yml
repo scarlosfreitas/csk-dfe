@@ -13,6 +13,10 @@ services:
       #   HOST_GID: ${HOST_GID:-1000}
     environment:
       - TZ=America/Sao_Paulo
+      # Ambiente virtual do uv fora da árvore do projeto: o devcontainer é
+      # descartável e a pasta do projeto é bind mount, então um .venv dentro
+      # dela sobreviveria à recriação do container com binários inválidos.
+      - UV_PROJECT_ENVIRONMENT=/home/app/.venv-csk-dfe
     restart: unless-stopped
     volumes:
       - ..:${PROJECT_FOLDER}:cached
