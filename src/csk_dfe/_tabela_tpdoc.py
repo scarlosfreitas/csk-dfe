@@ -47,7 +47,7 @@ ENTRADAS: tuple[_EntradaTpDoc, ...] = (
     _EntradaTpDoc(28, 28, ""),
     _EntradaTpDoc(29, 92, ""),
     _EntradaTpDoc(30, 60, ""),
-    _EntradaTpDoc(31, 124, ""),
+    _EntradaTpDoc(31, 124, "Lote DFe"),
     _EntradaTpDoc(32, 2, "EFD"),
     _EntradaTpDoc(33, 66, ""),
     _EntradaTpDoc(34, 34, ""),

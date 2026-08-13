@@ -28,35 +28,35 @@ _LIMITE_CHAVE = 2**63
 _ANO_MINIMO = 2000
 _ANO_MAXIMO = 2099
 
-DhEmi = Union[datetime, date, str]
+Data = Union[datetime, date, str]
 
 
 class CskDecodificado(NamedTuple):
     """Os quatro campos decompostos de uma chave CSK-DFE."""
 
-    dhemi: date
+    data: date
     tpdoc: TpDoc
     hash_cnpj: int
     random_number: int
 
 
-def _normalizar_dhemi(dhemi: DhEmi) -> int:
-    if isinstance(dhemi, datetime):
-        data = dhemi.date()
-    elif isinstance(dhemi, date):
-        data = dhemi
-    elif isinstance(dhemi, str):
-        if len(dhemi) != 6 or not dhemi.isdigit():
+def _normalizar_data(data_doc: Data) -> int:
+    if isinstance(data_doc, datetime):
+        data = data_doc.date()
+    elif isinstance(data_doc, date):
+        data = data_doc
+    elif isinstance(data_doc, str):
+        if len(data_doc) != 6 or not data_doc.isdigit():
             raise DataInvalidaError(
-                f"data {dhemi!r} não está no formato AAMMDD de 6 dígitos"
+                f"data {data_doc!r} não está no formato AAMMDD de 6 dígitos"
             )
-        ano, mes, dia = int(dhemi[0:2]), int(dhemi[2:4]), int(dhemi[4:6])
+        ano, mes, dia = int(data_doc[0:2]), int(data_doc[2:4]), int(data_doc[4:6])
         try:
             data = date(2000 + ano, mes, dia)
         except ValueError as erro:
-            raise DataInvalidaError(f"data {dhemi!r} não é um dia real do calendário") from erro
+            raise DataInvalidaError(f"data {data_doc!r} não é um dia real do calendário") from erro
     else:
-        raise DataInvalidaError(f"tipo {type(dhemi)!r} não é aceito para dhemi")
+        raise DataInvalidaError(f"tipo {type(data_doc)!r} não é aceito para data")
 
     if not _ANO_MINIMO <= data.year <= _ANO_MAXIMO:
         raise DataInvalidaError(
@@ -66,31 +66,45 @@ def _normalizar_dhemi(dhemi: DhEmi) -> int:
     return (data.year - 2000) * 10000 + data.month * 100 + data.day
 
 
-def generate(dhemi: DhEmi, tpdoc: TpDoc, cnpj: str) -> int:
-    """Compõe a chave CSK-DFE de 64 bits a partir da data de emissão, do tipo de documento e do CNPJ.
+def generate(data: Data, tpdoc: TpDoc, cnpj: str | None = None) -> int:
+    """Compõe a chave CSK-DFE de 64 bits a partir da data do documento, do tipo de documento e do CNPJ.
 
-    `dhemi` aceita `datetime` (a hora é descartada), `date` ou string `AAMMDD`.
-    Os 30 bits menos significativos vêm de um gerador não criptográfico:
-    chamadas repetidas com os mesmos argumentos produzem chaves diferentes, e
-    a biblioteca não garante unicidade.
+    `data` aceita `datetime` (a hora é descartada), `date` ou string `AAMMDD`.
+    É a data de emissão para documentos fiscais em geral, e a data de
+    recepção para lotes de DF-e.
+
+    `cnpj` é opcional. Quando informado, os 6 bits de segmento recebem
+    `hash_cnpj(cnpj)` e os 30 bits menos significativos vêm de um gerador
+    não criptográfico. Quando omitido, os 36 bits menos significativos são
+    integralmente preenchidos por esse mesmo gerador, em um único sorteio —
+    a chave resultante não carrega marcador de que foi gerada sem CNPJ e é
+    indistinguível de uma chave com CNPJ. Em ambos os modos, chamadas
+    repetidas com os mesmos argumentos produzem chaves diferentes, e a
+    biblioteca não garante unicidade.
     """
-    aammdd = _normalizar_dhemi(dhemi)
-    segmento = hash_cnpj(cnpj)
-    random_number = random.getrandbits(_LARGURA_RANDOM)
+    aammdd = _normalizar_data(data)
+
+    if cnpj is None:
+        campo_segmento_e_random = random.getrandbits(_LARGURA_CNPJ + _LARGURA_RANDOM)
+    else:
+        segmento = hash_cnpj(cnpj)
+        random_number = random.getrandbits(_LARGURA_RANDOM)
+        campo_segmento_e_random = (segmento << _DESLOCAMENTO_CNPJ) + random_number
 
     return (
         (aammdd << _DESLOCAMENTO_DATA)
         + (tpdoc.get_reverse_cod() << _DESLOCAMENTO_DOCUMENTO)
-        + (segmento << _DESLOCAMENTO_CNPJ)
-        + random_number
+        + campo_segmento_e_random
     )
 
 
 def decode(csk: int) -> CskDecodificado:
-    """Decompõe uma chave CSK-DFE válida em `CskDecodificado(dhemi, tpdoc, hash_cnpj, random_number)`.
+    """Decompõe uma chave CSK-DFE válida em `CskDecodificado(data, tpdoc, hash_cnpj, random_number)`.
 
     O CNPJ não é recuperável a partir da chave: `hash_cnpj` é o segmento de
-    0 a 63 do hash, nunca o CNPJ original.
+    0 a 63 do hash, nunca o CNPJ original. Quando a chave foi gerada sem
+    CNPJ, esse campo traz ruído aleatório e não deve ser interpretado como
+    segmento de contribuinte — a chave não indica qual foi o caso.
     """
     if csk < 0 or csk >= _LIMITE_CHAVE:
         raise ChaveInvalidaError(f"valor {csk} não é uma chave CSK-DFE válida de 63 bits")
@@ -103,7 +117,7 @@ def decode(csk: int) -> CskDecodificado:
     ano, resto = divmod(aammdd, 10000)
     mes, dia = divmod(resto, 100)
     try:
-        dhemi = date(2000 + ano, mes, dia)
+        data = date(2000 + ano, mes, dia)
     except ValueError as erro:
         raise ChaveInvalidaError(
             f"campo de data {aammdd:06d} não é um dia real do calendário"
@@ -111,4 +125,4 @@ def decode(csk: int) -> CskDecodificado:
 
     tpdoc = TpDoc.from_reverse_cod(reverso)
 
-    return CskDecodificado(dhemi=dhemi, tpdoc=tpdoc, hash_cnpj=segmento, random_number=random_number)
+    return CskDecodificado(data=data, tpdoc=tpdoc, hash_cnpj=segmento, random_number=random_number)

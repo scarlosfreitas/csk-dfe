@@ -13,16 +13,23 @@ context: |
     | hash do CNPJ (6, <<30) | random_number (30)
 
   Pontos do domínio que costumam ser mal interpretados:
-  - A data é o decimal literal AAMMDD, sem epoch, século fixo em 2000-2099.
-    Isso é deliberado: permite consulta SQL por faixa direto sobre a chave.
+  - O campo de data grava a data do documento: emissão para documentos
+    fiscais em geral, recepção para lotes de DF-e. É o decimal literal
+    AAMMDD, sem epoch, século fixo em 2000-2099. Isso é deliberado: permite
+    consulta SQL por faixa direto sobre a chave.
   - O campo de documento grava o código REVERSO (reversão de 7 bits), nunca
     o código direto. O bit mais à direita do campo é o sinalizador de
     tabela estendida.
   - O hash do CNPJ é FNV-1a de 32 bits reduzido por & 63, sobre a raiz de 8
     caracteres, que pode ser alfanumérica. Não é FNV-1.
-  - Os 30 bits do campo `random_number` usam gerador não criptográfico.
-    Sequenciais foram rejeitados por causa de choques no processamento
-    histórico (SQNFE do Catálogo 1.0).
+  - `cnpj` é opcional em `generate()`. Quando omitido, o campo de 6 bits do
+    hash do CNPJ recebe aleatório do mesmo gerador que preenche o
+    `random_number`, de modo que os 36 bits menos significativos da chave
+    sejam integralmente aleatórios. A chave não carrega marcador de qual
+    foi o caso.
+  - Os 30 (ou 36, sem CNPJ) bits do campo `random_number` usam gerador não
+    criptográfico. Sequenciais foram rejeitados por causa de choques no
+    processamento histórico (SQNFE do Catálogo 1.0).
   - O CNPJ não é recuperável a partir da chave: o campo guarda um hash.
   - A biblioteca não garante unicidade; ela é responsabilidade do consumidor.
 
@@ -36,9 +43,9 @@ context: |
   A pasta notebooks/ NÃO é referência: destina-se a notebooks de teste e
   prototipação.
 
-  Requisitos: specs/PRD.md, seção 8, com 27 critérios numerados em
-  linguagem normativa (DEVE). Cada cenário WHEN/THEN deve rastrear para um
-  desses critérios.
+  Requisitos: specs/PRD.md, seção 8, com critérios numerados em linguagem
+  normativa (DEVE), atualmente 30. Cada cenário WHEN/THEN deve rastrear
+  para um desses critérios.
 
   Stack: Python, uv como gerenciador de ambiente e dependências, com a
   pasta do ambiente virtual fora da pasta do projeto. Sem dependências

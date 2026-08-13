@@ -108,6 +108,28 @@ def test_ida_e_volta_entre_codigo_e_codigo_reverso():
         assert obtido == original
 
 
+# --- Tipo de documento Lote DFe (30) --------------------------------------
+
+
+def test_lote_dfe_resolvido_por_codigo():
+    tipo = TpDoc.from_cod(31)
+    assert tipo.get_cod() == 31
+    assert tipo.get_reverse_cod() == 124
+    assert tipo.get_name() == "Lote DFe"
+
+
+def test_lote_dfe_resolvido_por_codigo_reverso():
+    tipo = TpDoc.from_reverse_cod(124)
+    assert tipo.get_cod() == 31
+    assert tipo.get_name() == "Lote DFe"
+
+
+def test_lote_dfe_resolvido_por_nome():
+    tipo = TpDoc.from_name("Lote DFe")
+    assert tipo.get_cod() == 31
+    assert tipo.get_reverse_cod() == 124
+
+
 # --- Aderência à fonte da verdade (5.7, 5.8) -----------------------------
 
 

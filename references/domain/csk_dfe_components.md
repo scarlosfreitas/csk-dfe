@@ -4,7 +4,9 @@
 
 A representação da data em decimais será AAMMDD. Não será utiliza uma data inicial (epoch), assim, conseguimos fazer consultas sql de forma simples com data na chave.
 
-Exemplo: documentos emitidos entre 01/01/2022 a 31/07/2023 seriam: `220101*2**43 a 230731*2**43`
+A data gravada é a data do documento: data de emissão para documentos fiscais em geral, e data de recepção para lotes de DF-e. Documentos sem data de emissão usam a data que os identifique cronologicamente no seu próprio ciclo de vida.
+
+Exemplo: documentos cuja data é de 01/01/2022 a 31/07/2023 seriam: `220101*2**43 a 230731*2**43`
 
 ## Documento
 
@@ -13,6 +15,8 @@ Existirá uma tabela com 64 documentos gerais e mais comuns (codigo 0 a 63). Os 
 ## CNPJ base
 
 Os documentos serão particionados por dia, em arquivos geralmente de 128mb. A fim de agrupar os documentos de mesmos contribuintes, serão gerados 64 segmentos a partir do hash não criptográfico uniformemente distribuído do CNPJ base.
+
+O CNPJ é opcional na geração da chave. Quando não informado, o campo de 6 bits reservado ao hash do CNPJ recebe bits do mesmo gerador aleatório que preenche o `random_number`, de modo que os 36 bits menos significativos da chave sejam integralmente aleatórios. A chave resultante não carrega marcador de que foi gerada sem CNPJ: é indistinguível de uma chave com CNPJ.
 
 O algoritmo utilizado será o FNV-1a pelas seguintes razões:
 1. **Extremamente leve:** Usa apenas operações de XOR (`^`) e multiplicação.

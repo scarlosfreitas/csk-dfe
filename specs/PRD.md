@@ -84,9 +84,9 @@ Números sequenciais são deliberadamente rejeitados: no processamento históric
 
 **Parâmetros de entrada:**
 
-* **dhemi:** data de emissão (`datetime`, `date` ou string no formato `AAMMDD`)
+* **data:** data do documento — de emissão para documentos fiscais em geral, de recepção para lotes de DF-e (`datetime`, `date` ou string no formato `AAMMDD`)
 * **tpdoc:** tipo de documento (objeto `TpDoc`)
-* **cnpj:** CNPJ ou raiz do CNPJ (string)
+* **cnpj:** CNPJ ou raiz do CNPJ (string, opcional). Quando omitido, os 6 bits reservados ao hash do CNPJ recebem bits do mesmo gerador aleatório que preenche o `random_number`
 
 **Retorno:**
 
@@ -100,12 +100,12 @@ Números sequenciais são deliberadamente rejeitados: no processamento históric
 
 **Retorno:**
 
-* **dhemi:** data de emissão (`date`, século 2000–2099)
+* **data:** data do documento (`date`, século 2000–2099)
 * **tpdoc:** tipo de documento (objeto `TpDoc`)
 * **hash_cnpj:** segmento do CNPJ base (inteiro de 0 a 63)
 * **random_number:** número aleatório de desambiguação (inteiro de 0 a 2³⁰−1)
 
-> O CNPJ **não** é recuperável a partir da chave: o campo de 6 bits guarda um hash, não o valor. `decode()` devolve o segmento, não o CNPJ.
+> O CNPJ **não** é recuperável a partir da chave: o campo de 6 bits guarda um hash, não o valor. `decode()` devolve o segmento, não o CNPJ. Quando a chave foi gerada sem CNPJ, o campo `hash_cnpj` traz ruído aleatório e não deve ser interpretado como segmento de contribuinte — a chave não carrega marcador de qual foi o caso.
 
 ### `csk_dfe.to_base62()`
 
@@ -206,13 +206,13 @@ Códigos reservados são válidos para `from_cod()` e `from_reverse_cod()`, mas 
 
 1. A chave gerada **DEVE** ter o bit 63 igual a `0`.
 2. A chave **DEVE** ser igual a `AAMMDD * 2**43 + reverso * 2**36 + hash * 2**30 + aleatorio`.
-3. `decode()` **DEVE** devolver a data, o tipo de documento e o segmento de CNPJ originalmente fornecidos a `generate()`, para qualquer entrada válida (*round-trip*).
+3. `decode()` **DEVE** devolver a data do documento, o tipo de documento e o segmento de CNPJ originalmente fornecidos a `generate()`, para qualquer entrada válida (*round-trip*).
 
 ### Data
 
 4. Dada a data 01/01/2022, a chave gerada **DEVE** ser maior ou igual a `220101 * 2**43` e menor que `220102 * 2**43`.
 5. Toda chave de um documento emitido em 2022 **DEVE** ser numericamente menor que toda chave de um documento emitido em 2023 — a ordenação numérica da chave reflete a ordenação cronológica.
-6. `decode()` **DEVE** interpretar `AA` na janela 2000–2099: `220101` devolve 01/01/2022.
+6. `decode()` **DEVE** interpretar `AA` na janela 2000–2099 no campo de data do documento: `220101` devolve 01/01/2022.
 7. `generate()` **DEVE** rejeitar datas inválidas com erro explícito, mesmo quando representáveis em 20 bits — por exemplo `991331`, `220230` e `000000`.
 8. `generate()` **DEVE** rejeitar datas fora da janela 2000–2099.
 
@@ -249,6 +249,12 @@ Códigos reservados são válidos para `from_cod()` e `from_reverse_cod()`, mas 
 
 26. `generate()` **DEVE** executar em tempo constante em relação ao volume de chaves já geradas e **NÃO DEVE** realizar I/O.
 27. A biblioteca **NÃO DEVE** depender de pacotes fora da biblioteca padrão do Python.
+
+### Modo sem CNPJ e `Lote DFe`
+
+28. `generate()` chamado sem `cnpj` **DEVE** preencher os 36 bits menos significativos da chave com valores do gerador aleatório, mantendo intactos os campos de data e de tipo de documento.
+29. Uma chave gerada sem `cnpj` **NÃO DEVE** ser distinguível, por inspeção da chave ou do resultado de `decode()`, de uma chave gerada com `cnpj`.
+30. `TpDoc.from_cod(31)` **DEVE** devolver código reverso `124` e nome `Lote DFe`, e `TpDoc.from_name("Lote DFe")` **DEVE** devolver o código `31`.
 
 ---
 

@@ -1,38 +1,4 @@
-# chave-composta Specification
-
-## Purpose
-
-Compor e decompor o CSK-DFE, o identificador de partição de 64 bits que reúne data do documento, tipo de documento, segmento do contribuinte e um número de desambiguação em um único inteiro positivo, ordenável cronologicamente e consultável por faixa em SQL.
-
-## Requirements
-
-### Requirement: Composição da chave
-
-O sistema SHALL compor a chave a partir da data do documento, do tipo de documento e, opcionalmente, do CNPJ, de modo que ela seja exatamente `AAMMDD * 2**43 + reverso * 2**36 + segmento * 2**30 + random_number`, onde `reverso` é o código reverso do tipo de documento e `segmento` é o hash da raiz do CNPJ quando ele é informado, ou um valor aleatório quando não é.
-
-A data do documento SHALL ser a data de emissão para documentos fiscais em geral, e a data de recepção para lotes de DF-e. Documentos sem data de emissão SHALL usar a data que os identifique cronologicamente no seu próprio ciclo de vida.
-
-Rastreia os critérios 1, 2 e 9 do §8 do PRD.
-
-#### Scenario: Identidade aritmética da chave
-
-- **WHEN** uma chave é gerada e decomposta em seus quatro campos
-- **THEN** a chave é igual à soma dos campos multiplicados por `2**43`, `2**36`, `2**30` e `1`, respectivamente
-
-#### Scenario: Chave sempre positiva
-
-- **WHEN** uma chave é gerada para qualquer entrada válida, com ou sem CNPJ
-- **THEN** o bit 63 da chave é `0` e a chave é representável como `BIGINT` positivo
-
-#### Scenario: O campo de documento grava o código reverso
-
-- **WHEN** uma chave é gerada para um tipo de documento cujo código é `5` e cujo código reverso é `80`
-- **THEN** o campo de 7 bits da chave contém `80`, e não `5`
-
-#### Scenario: Data de recepção em lote de DF-e
-
-- **WHEN** uma chave é gerada para um lote de DF-e recebido em 01/01/2022
-- **THEN** o campo de data contém `220101`, a data de recepção do lote
+## ADDED Requirements
 
 ### Requirement: Geração sem CNPJ
 
@@ -77,6 +43,41 @@ Rastreia o critério 29 do §8 do PRD.
 
 - **WHEN** uma chave gerada com CNPJ e uma chave gerada sem CNPJ são decompostas
 - **THEN** nenhum campo do resultado permite determinar qual delas foi gerada sem CNPJ
+
+## RENAMED Requirements
+
+- FROM: `### Requirement: Formas aceitas de data de emissão`
+- TO: `### Requirement: Formas aceitas da data do documento`
+
+## MODIFIED Requirements
+
+### Requirement: Composição da chave
+
+O sistema SHALL compor a chave a partir da data do documento, do tipo de documento e, opcionalmente, do CNPJ, de modo que ela seja exatamente `AAMMDD * 2**43 + reverso * 2**36 + segmento * 2**30 + random_number`, onde `reverso` é o código reverso do tipo de documento e `segmento` é o hash da raiz do CNPJ quando ele é informado, ou um valor aleatório quando não é.
+
+A data do documento SHALL ser a data de emissão para documentos fiscais em geral, e a data de recepção para lotes de DF-e. Documentos sem data de emissão SHALL usar a data que os identifique cronologicamente no seu próprio ciclo de vida.
+
+Rastreia os critérios 1, 2 e 9 do §8 do PRD.
+
+#### Scenario: Identidade aritmética da chave
+
+- **WHEN** uma chave é gerada e decomposta em seus quatro campos
+- **THEN** a chave é igual à soma dos campos multiplicados por `2**43`, `2**36`, `2**30` e `1`, respectivamente
+
+#### Scenario: Chave sempre positiva
+
+- **WHEN** uma chave é gerada para qualquer entrada válida, com ou sem CNPJ
+- **THEN** o bit 63 da chave é `0` e a chave é representável como `BIGINT` positivo
+
+#### Scenario: O campo de documento grava o código reverso
+
+- **WHEN** uma chave é gerada para um tipo de documento cujo código é `5` e cujo código reverso é `80`
+- **THEN** o campo de 7 bits da chave contém `80`, e não `5`
+
+#### Scenario: Data de recepção em lote de DF-e
+
+- **WHEN** uma chave é gerada para um lote de DF-e recebido em 01/01/2022
+- **THEN** o campo de data contém `220101`, a data de recepção do lote
 
 ### Requirement: Formas aceitas da data do documento
 
@@ -159,30 +160,6 @@ Rastreia os critérios 3 e 6 do §8 do PRD.
 
 - **WHEN** uma chave é decomposta
 - **THEN** o resultado traz o segmento de `0` a `63`, e em nenhum campo o CNPJ que originou a chave
-
-### Requirement: Validação na decomposição
-
-O sistema SHALL rejeitar com erro explícito a decomposição de um valor que não seja uma chave válida, em vez de devolver campos sem sentido.
-
-#### Scenario: Valor negativo
-
-- **WHEN** um valor negativo é decomposto
-- **THEN** o sistema rejeita a operação com erro explícito
-
-#### Scenario: Valor com o bit de sinal ocupado
-
-- **WHEN** um valor maior ou igual a `2**63` é decomposto
-- **THEN** o sistema rejeita a operação com erro explícito
-
-#### Scenario: Campo de data sem correspondência no calendário
-
-- **WHEN** um valor cujo campo de data é `991331` é decomposto
-- **THEN** o sistema rejeita a operação com erro explícito
-
-#### Scenario: Campo de documento de tabela estendida
-
-- **WHEN** um valor cujo campo de documento tem o bit mais à direita igual a `1` é decomposto
-- **THEN** o sistema rejeita a operação com erro explícito, informando que se trata de tabela estendida
 
 ### Requirement: Número de desambiguação
 
